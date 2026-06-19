@@ -5,7 +5,7 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../core/constants.dart';
-import '../../services/ble_controller_service.dart';
+import '../../services/p2p_connection_service.dart';
 import '../../services/gesture_detection_service.dart';
 import '../../widgets/status_pill.dart';
 
@@ -26,7 +26,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeCamera();
-      Provider.of<BleControllerService>(context, listen: false).startScanning();
+      Provider.of<P2pConnectionService>(context, listen: false).startControllerMode();
     });
   }
 
@@ -52,7 +52,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
       _cameraController!.startImageStream((image) {
         if (!mounted) return;
         final gs = Provider.of<GestureDetectionService>(context, listen: false);
-        final bs = Provider.of<BleControllerService>(context, listen: false);
+        final bs = Provider.of<P2pConnectionService>(context, listen: false);
         final input = _toInputImage(image, front);
         if (input != null) {
           gs.processImage(input, (g) {
@@ -63,47 +63,111 @@ class _ControllerScreenState extends State<ControllerScreen> {
       });
     } catch (e) {
       debugPrint('Kamera error: $e');
+      if (!mounted) return;
+      setState(() => _isCameraInitialized = true); // Tetap tampilkan UI walau error kamera
     }
   }
 
   InputImage? _toInputImage(CameraImage img, CameraDescription cam) {
     if (kIsWeb) return null;
-    final buf = WriteBuffer();
-    for (final p in img.planes) buf.putUint8List(p.bytes);
-    final bytes = buf.done().buffer.asUint8List();
     final rot = InputImageRotationValue.fromRawValue(cam.sensorOrientation);
-    final fmt = InputImageFormatValue.fromRawValue(img.format.raw);
-    if (rot == null || fmt == null) return null;
+    if (rot == null) return null;
+
+    Uint8List bytes;
+    final formatRaw = img.format.raw;
+    
+    // On Android, if format is YUV_420_888 (35), we must convert it to NV21 (17) manually
+    // because MLKit's fromBytes on Android only accepts NV21.
+    if (defaultTargetPlatform == TargetPlatform.android && formatRaw == 35) {
+      if (img.planes.length != 3) return null;
+      bytes = _yuv420ToNv21(img);
+    } else {
+      final buf = WriteBuffer();
+      for (final p in img.planes) buf.putUint8List(p.bytes);
+      bytes = buf.done().buffer.asUint8List();
+    }
+
+    final fmt = defaultTargetPlatform == TargetPlatform.android ? InputImageFormat.nv21 : InputImageFormat.bgra8888;
+    
+    debugPrint('DEBUG_CAMERA_FORMAT: formatRaw=$formatRaw, planes=${img.planes.length}, fmt=$fmt, rawValue=${fmt.rawValue}, bytes_len=${bytes.length}, width=${img.width}, height=${img.height}');
+    
     return InputImage.fromBytes(
       bytes: bytes,
       metadata: InputImageMetadata(
         size: Size(img.width.toDouble(), img.height.toDouble()),
-        rotation: rot, format: fmt, bytesPerRow: img.planes[0].bytesPerRow,
+        rotation: rot, 
+        format: fmt, 
+        bytesPerRow: defaultTargetPlatform == TargetPlatform.android && formatRaw == 35 ? img.width : img.planes[0].bytesPerRow,
       ),
     );
+  }
+
+  Uint8List _yuv420ToNv21(CameraImage image) {
+    final width = image.width;
+    final height = image.height;
+    final yPlane = image.planes[0];
+    final uPlane = image.planes[1];
+    final vPlane = image.planes[2];
+
+    final yBuffer = yPlane.bytes;
+    final uBuffer = uPlane.bytes;
+    final vBuffer = vPlane.bytes;
+
+    final numPixels = width * height;
+    final nv21 = Uint8List(numPixels + (numPixels ~/ 2));
+
+    // Copy Y channel
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        nv21[y * width + x] = yBuffer[y * yPlane.bytesPerRow + x];
+      }
+    }
+
+    // Copy V and U channels (NV21 format is V, U interleaved)
+    int idUV = numPixels;
+    final uvRowStride = uPlane.bytesPerRow;
+    final uvPixelStride = uPlane.bytesPerPixel ?? 1;
+
+    for (int y = 0; y < height ~/ 2; y++) {
+      for (int x = 0; x < width ~/ 2; x++) {
+        final uvIndex = y * uvRowStride + x * uvPixelStride;
+        nv21[idUV++] = vBuffer[uvIndex];
+        nv21[idUV++] = uBuffer[uvIndex];
+      }
+    }
+    return nv21;
   }
 
   @override
   void dispose() {
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
+    Provider.of<P2pConnectionService>(context, listen: false).stopAll();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final ble = context.watch<BleControllerService>().connectionState;
+    final p2pState = context.watch<P2pConnectionService>().state;
     final gesture = context.watch<GestureDetectionService>().currentGesture;
-    final connected = ble == BleConnectionState.connected;
+    final connected = p2pState == P2pState.connected;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pengendali'),
         actions: [
+          if (p2pState == P2pState.disconnected)
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, color: AppTheme.warning),
+              tooltip: 'Cari Ulang',
+              onPressed: () {
+                context.read<P2pConnectionService>().startControllerMode();
+              },
+            ),
           Padding(
-            padding: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.only(right: 16, left: 8),
             child: StatusPill(
-              label: connected ? 'Terhubung' : 'Mencari...',
+              label: connected ? 'Terhubung' : (p2pState == P2pState.discovering ? 'Mencari...' : 'Terputus'),
               active: connected,
               activeColor: connected ? AppTheme.success : AppTheme.warning,
             ),
@@ -231,6 +295,55 @@ class _ControllerScreenState extends State<ControllerScreen> {
                 const SizedBox(width: 12),
                 _gestureBox('KANAN', Icons.east_rounded, gesture == GestureType.tiltRight),
               ],
+            ),
+          ),
+          // ── Tombol Simulasi Pengendali ──
+          Container(
+            padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + MediaQuery.of(context).padding.bottom),
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: AppTheme.border)),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: AppTheme.bgCard,
+                  foregroundColor: AppTheme.textSub,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.r8),
+                    side: const BorderSide(color: AppTheme.border),
+                  ),
+                ),
+                onPressed: () {
+                  final cmds = [GestureType.tiltLeft, GestureType.tiltRight];
+                  final cmd = cmds[DateTime.now().millisecondsSinceEpoch % cmds.length];
+                  
+                  // Simulasi proses gestur
+                  final bs = Provider.of<P2pConnectionService>(context, listen: false);
+                  final gs = Provider.of<GestureDetectionService>(context, listen: false);
+                  
+                  gs.simulateGesture(cmd, (g) {
+                    if (g == GestureType.tiltLeft) bs.sendCommand(AppConstants.cmdLeft);
+                    if (g == GestureType.tiltRight) bs.sendCommand(AppConstants.cmdRight);
+                  });
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Simulasi Gestur: ${cmd == GestureType.tiltLeft ? 'KIRI' : 'KANAN'}'), 
+                      duration: const Duration(seconds: 1)
+                    ),
+                  );
+                },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.science_outlined, size: 16),
+                    SizedBox(width: 8),
+                    Text('Simulasi Gestur & Kirim', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              ),
             ),
           ),
         ],

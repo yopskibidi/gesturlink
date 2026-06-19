@@ -5,8 +5,7 @@ import 'package:showcaseview/showcaseview.dart';
 import 'core/theme.dart';
 import 'modules/onboarding/splash_screen.dart';
 import 'services/permission_service.dart';
-import 'services/ble_controller_service.dart';
-import 'services/ble_receiver_service.dart';
+import 'services/p2p_connection_service.dart';
 import 'services/gesture_detection_service.dart';
 
 void main() {
@@ -15,8 +14,7 @@ void main() {
     MultiProvider(
       providers: [
         Provider<PermissionService>(create: (_) => PermissionService()),
-        ChangeNotifierProvider<BleControllerService>(create: (_) => BleControllerService()),
-        ChangeNotifierProvider<BleReceiverService>(create: (_) => BleReceiverService()),
+        ChangeNotifierProvider<P2pConnectionService>(create: (_) => P2pConnectionService()),
         ChangeNotifierProvider<GestureDetectionService>(create: (_) => GestureDetectionService()),
       ],
       child: const GesturLinkApp(),

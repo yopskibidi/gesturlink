@@ -12,9 +12,11 @@ class PermissionService {
 
     if (defaultTargetPlatform == TargetPlatform.android) {
       permissions.addAll([
+        Permission.location,
         Permission.bluetoothScan,
         Permission.bluetoothConnect,
         Permission.bluetoothAdvertise,
+        Permission.nearbyWifiDevices,
       ]);
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
       permissions.add(Permission.bluetooth);

@@ -69,6 +69,21 @@ class GestureDetectionService extends ChangeNotifier {
     }
   }
 
+  void simulateGesture(GestureType gesture, Function(GestureType) onGestureDetected) {
+    final now = DateTime.now();
+    if (now.difference(_lastGestureTime).inMilliseconds > 500) {
+      _lastGestureTime = now;
+      _currentGesture = gesture;
+      onGestureDetected(gesture);
+      notifyListeners();
+      
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _currentGesture = GestureType.none;
+        notifyListeners();
+      });
+    }
+  }
+
   @override
   void dispose() {
     _faceDetector?.close();

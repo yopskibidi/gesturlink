@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
-import '../../services/ble_receiver_service.dart';
+import '../../services/p2p_connection_service.dart';
 import '../../widgets/status_pill.dart';
 
 /// Layar Penerima — dashboard profesional dengan log timeline.
@@ -17,13 +17,19 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<BleReceiverService>(context, listen: false).startAdvertising();
+      Provider.of<P2pConnectionService>(context, listen: false).startReceiverMode();
     });
   }
 
   @override
+  void dispose() {
+    Provider.of<P2pConnectionService>(context, listen: false).stopAll();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final svc = context.watch<BleReceiverService>();
+    final svc = context.watch<P2pConnectionService>();
 
     return Scaffold(
       appBar: AppBar(
@@ -32,8 +38,8 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: StatusPill(
-              label: svc.isAdvertising ? 'Siaran Aktif' : 'Nonaktif',
-              active: svc.isAdvertising,
+              label: svc.state == P2pState.connected ? 'Terhubung' : (svc.state == P2pState.advertising ? 'Siaran Aktif' : 'Nonaktif'),
+              active: svc.state == P2pState.connected || svc.state == P2pState.advertising,
             ),
           ),
         ],
@@ -48,15 +54,24 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                _statItem('Status', svc.isAdvertising ? 'Aktif' : 'Nonaktif',
-                    svc.isAdvertising ? AppTheme.success : AppTheme.textMuted),
+                _statItem('Status', svc.state == P2pState.connected ? 'Terhubung' : 'Standby',
+                    svc.state == P2pState.connected ? AppTheme.success : AppTheme.textMuted),
                 _dividerVertical(),
                 _statItem('Perintah', '${svc.actionLogs.length}', AppTheme.text),
                 _dividerVertical(),
-                _statItem('Mode', 'Peripheral', AppTheme.textSub),
+                _statItem('Mode', 'P2P Receiver', AppTheme.textSub),
               ],
             ),
           ),
+          if (svc.errorMessage != null)
+            Container(
+              padding: const EdgeInsets.all(12),
+              color: AppTheme.warning.withOpacity(0.1),
+              child: Text(
+                'Error: ${svc.errorMessage}',
+                style: const TextStyle(color: AppTheme.warning, fontSize: 12),
+              ),
+            ),
           const Divider(height: 1),
 
           // ── Header Log ──
@@ -109,7 +124,10 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
                 onPressed: () {
                   final cmds = ['LEFT', 'RIGHT'];
                   final cmd = cmds[DateTime.now().millisecondsSinceEpoch % cmds.length];
-                  Provider.of<BleReceiverService>(context, listen: false).onCommandReceived(cmd);
+                  Provider.of<P2pConnectionService>(context, listen: false).simulateCommand(cmd);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Simulasi diterima: Gestur $cmd'), duration: const Duration(seconds: 1)),
+                  );
                 },
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
