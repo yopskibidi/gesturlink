@@ -13,6 +13,9 @@ class ReceiverScreen extends StatefulWidget {
 }
 
 class _ReceiverScreenState extends State<ReceiverScreen> {
+  final PageController _pageController = PageController();
+  DateTime? _lastProcessedLogTime;
+
   @override
   void initState() {
     super.initState();
@@ -23,6 +26,7 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
 
   @override
   void dispose() {
+    _pageController.dispose();
     Provider.of<P2pConnectionService>(context, listen: false).stopAll();
     super.dispose();
   }
@@ -30,6 +34,21 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
   @override
   Widget build(BuildContext context) {
     final svc = context.watch<P2pConnectionService>();
+
+    // Proses perintah terbaru untuk mengubah slide
+    if (svc.actionLogs.isNotEmpty) {
+      final latestLog = svc.actionLogs.first;
+      if (_lastProcessedLogTime != latestLog.timestamp) {
+        _lastProcessedLogTime = latestLog.timestamp;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (latestLog.command == 'LEFT' || latestLog.command == 'cmd_left') {
+            _pageController.previousPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+          } else if (latestLog.command == 'RIGHT' || latestLog.command == 'cmd_right') {
+            _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+          }
+        });
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -48,21 +67,47 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
         children: [
           const Divider(height: 1),
 
-          // ── Panel Statistik ──
+          // ── Area Demo Slide (Mini Project UAS) ──
           Container(
-            color: AppTheme.bgElevated,
-            padding: const EdgeInsets.all(20),
-            child: Row(
+            height: 220,
+            color: AppTheme.bgCard,
+            child: PageView(
+              controller: _pageController,
               children: [
-                _statItem('Status', svc.state == P2pState.connected ? 'Terhubung' : 'Standby',
-                    svc.state == P2pState.connected ? AppTheme.success : AppTheme.textMuted),
-                _dividerVertical(),
-                _statItem('Perintah', '${svc.actionLogs.length}', AppTheme.text),
-                _dividerVertical(),
-                _statItem('Mode', 'P2P Receiver', AppTheme.textSub),
+                _buildSlide(
+                  title: 'GesturLink',
+                  content: 'Touchless Presentation Controller\nvia P2P & Machine Learning\n\nMini Project UAS',
+                  icon: Icons.gesture,
+                  color: AppTheme.accent,
+                ),
+                _buildSlide(
+                  title: 'Latar Belakang',
+                  content: 'Banyak presentator harus terpaku pada laptop saat menjelaskan. GesturLink hadir untuk memberikan kontrol hands-free menggunakan gestur kemiringan kepala.',
+                  icon: Icons.lightbulb_outline,
+                  color: AppTheme.warning,
+                ),
+                _buildSlide(
+                  title: 'Arsitektur Sistem',
+                  content: '1. ML Kit: Deteksi rotasi wajah (Euler Z) real-time.\n2. Nearby API: Komunikasi P2P offline tanpa latensi.\n3. Flutter: Antarmuka & State Management lintas perangkat.',
+                  icon: Icons.architecture,
+                  color: AppTheme.accentSoft,
+                ),
+                _buildSlide(
+                  title: 'Hasil Evaluasi',
+                  content: 'Penyampaian perintah berjalan sangat responsif. Penguncian gestur (Neutral Lock) terbukti mengurangi false-positive dan double-triggering.',
+                  icon: Icons.analytics_outlined,
+                  color: AppTheme.success,
+                ),
+                _buildSlide(
+                  title: 'Sesi Selesai',
+                  content: 'Terima kasih atas perhatiannya!\nMari kita mulai sesi diskusi dan tanya jawab.\n\n(Gunakan gestur KIRI/KANAN untuk memindahkan slide)',
+                  icon: Icons.forum_outlined,
+                  color: Colors.purple,
+                ),
               ],
             ),
           ),
+          const Divider(height: 1),
           if (svc.errorMessage != null)
             Container(
               padding: const EdgeInsets.all(12),
@@ -145,20 +190,6 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
     );
   }
 
-  Widget _statItem(String label, String value, Color valueColor) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(label,
-            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted, fontWeight: FontWeight.w500, letterSpacing: 0.5)),
-          const SizedBox(height: 6),
-          Text(value,
-            style: TextStyle(fontSize: 16, color: valueColor, fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-  }
-
   Widget _dividerVertical() {
     return Container(width: 1, height: 36, color: AppTheme.border);
   }
@@ -236,6 +267,52 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
               child: const Text('Terbaru',
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.accent, letterSpacing: 0.3)),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSlide({required String title, required String content, required IconData icon, required Color color}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(AppTheme.r16),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60, height: 60,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 32, color: color),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(title, 
+                  style: TextStyle(
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold, 
+                    color: color
+                  )
+                ),
+                const SizedBox(height: 8),
+                Text(content, 
+                  style: const TextStyle(fontSize: 12, color: AppTheme.textSub, height: 1.4),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

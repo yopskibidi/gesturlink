@@ -22,6 +22,7 @@ class GestureDetectionService extends ChangeNotifier {
   }
 
   bool _isProcessing = false;
+  bool _isNeutral = true;
   GestureType _currentGesture = GestureType.none;
   DateTime _lastGestureTime = DateTime.now();
 
@@ -40,22 +41,30 @@ class GestureDetectionService extends ChangeNotifier {
         // Negative -> tilt left, Positive -> tilt right
         double tiltAngle = face.headEulerAngleZ ?? 0.0;
 
+        // Require head to return to neutral (-10 to 10 degrees) before allowing next gesture
+        if (tiltAngle > -10.0 && tiltAngle < 10.0) {
+          _isNeutral = true;
+        }
+
         GestureType detected = GestureType.none;
-        if (tiltAngle < -15.0) {
+        // Increase threshold to 18.0 for more deliberate tilt
+        if (tiltAngle < -18.0 && _isNeutral) {
           detected = GestureType.tiltLeft;
-        } else if (tiltAngle > 15.0) {
+        } else if (tiltAngle > 18.0 && _isNeutral) {
           detected = GestureType.tiltRight;
         }
 
         if (detected != GestureType.none) {
+          _isNeutral = false; // Lock gesture until head returns to neutral
           final now = DateTime.now();
-          if (now.difference(_lastGestureTime).inMilliseconds > 500) {
+          // Increase cooldown to 800ms to avoid accidental quick double-triggers
+          if (now.difference(_lastGestureTime).inMilliseconds > 800) {
             _lastGestureTime = now;
             _currentGesture = detected;
             onGestureDetected(detected);
             notifyListeners();
             
-            Future.delayed(const Duration(milliseconds: 500), () {
+            Future.delayed(const Duration(milliseconds: 800), () {
               _currentGesture = GestureType.none;
               notifyListeners();
             });

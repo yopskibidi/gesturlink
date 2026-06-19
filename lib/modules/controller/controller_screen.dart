@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -39,7 +41,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
         orElse: () => cameras.first,
       );
       _cameraController = CameraController(
-        front, ResolutionPreset.low,
+        front, ResolutionPreset.medium,
         enableAudio: false,
         imageFormatGroup: kIsWeb ? null
             : (defaultTargetPlatform == TargetPlatform.android
@@ -68,36 +70,69 @@ class _ControllerScreenState extends State<ControllerScreen> {
     }
   }
 
+  final _orientations = {
+    DeviceOrientation.portraitUp: 0,
+    DeviceOrientation.landscapeLeft: 90,
+    DeviceOrientation.portraitDown: 180,
+    DeviceOrientation.landscapeRight: 270,
+  };
+
   InputImage? _toInputImage(CameraImage img, CameraDescription cam) {
     if (kIsWeb) return null;
-    final rot = InputImageRotationValue.fromRawValue(cam.sensorOrientation);
-    if (rot == null) return null;
 
-    Uint8List bytes;
+    final sensorOrientation = cam.sensorOrientation;
+    InputImageRotation? rotation;
+    if (Platform.isIOS) {
+      rotation = InputImageRotationValue.fromRawValue(sensorOrientation);
+    } else if (Platform.isAndroid) {
+      var rotationCompensation = _orientations[_cameraController!.value.deviceOrientation];
+      if (rotationCompensation == null) return null;
+      if (cam.lensDirection == CameraLensDirection.front) {
+        rotationCompensation = (sensorOrientation + rotationCompensation) % 360;
+      } else {
+        rotationCompensation = (sensorOrientation - rotationCompensation + 360) % 360;
+      }
+      rotation = InputImageRotationValue.fromRawValue(rotationCompensation);
+    }
+    if (rotation == null) return null;
+
     final formatRaw = img.format.raw;
+    Uint8List bytes;
+    int bytesPerRow;
+    InputImageFormat finalFormat;
+
+    // Handle MLKit format
+    final format = InputImageFormatValue.fromRawValue(formatRaw);
     
-    // On Android, if format is YUV_420_888 (35), we must convert it to NV21 (17) manually
-    // because MLKit's fromBytes on Android only accepts NV21.
     if (defaultTargetPlatform == TargetPlatform.android && formatRaw == 35) {
+      // Manual YUV_420_888 to NV21 conversion
       if (img.planes.length != 3) return null;
       bytes = _yuv420ToNv21(img);
+      bytesPerRow = img.width;
+      finalFormat = InputImageFormat.nv21;
     } else {
-      final buf = WriteBuffer();
-      for (final p in img.planes) buf.putUint8List(p.bytes);
-      bytes = buf.done().buffer.asUint8List();
+      if (format == null) return null;
+      finalFormat = format;
+      if (img.planes.isEmpty) return null;
+      
+      if (img.planes.length == 1) {
+        bytes = img.planes[0].bytes;
+        bytesPerRow = img.planes[0].bytesPerRow;
+      } else {
+        final buf = WriteBuffer();
+        for (final p in img.planes) buf.putUint8List(p.bytes);
+        bytes = buf.done().buffer.asUint8List();
+        bytesPerRow = img.planes[0].bytesPerRow;
+      }
     }
 
-    final fmt = defaultTargetPlatform == TargetPlatform.android ? InputImageFormat.nv21 : InputImageFormat.bgra8888;
-    
-    debugPrint('DEBUG_CAMERA_FORMAT: formatRaw=$formatRaw, planes=${img.planes.length}, fmt=$fmt, rawValue=${fmt.rawValue}, bytes_len=${bytes.length}, width=${img.width}, height=${img.height}');
-    
     return InputImage.fromBytes(
       bytes: bytes,
       metadata: InputImageMetadata(
         size: Size(img.width.toDouble(), img.height.toDouble()),
-        rotation: rot, 
-        format: fmt, 
-        bytesPerRow: defaultTargetPlatform == TargetPlatform.android && formatRaw == 35 ? img.width : img.planes[0].bytesPerRow,
+        rotation: rotation, 
+        format: finalFormat, 
+        bytesPerRow: bytesPerRow,
       ),
     );
   }
