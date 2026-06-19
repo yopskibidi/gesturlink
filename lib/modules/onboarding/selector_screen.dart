@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:showcaseview/showcaseview.dart';
 
 import '../../core/theme.dart';
 import '../../services/permission_service.dart';
@@ -17,11 +19,35 @@ class SelectorScreen extends StatefulWidget {
 
 class _SelectorScreenState extends State<SelectorScreen> {
   bool _permissionsGranted = false;
+  final GlobalKey _permissionKey = GlobalKey();
+  final GlobalKey _controllerKey = GlobalKey();
+  final GlobalKey _receiverKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPermissions());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initScreen());
+  }
+
+  Future<void> _initScreen() async {
+    await _checkPermissions();
+    _checkShowcase();
+  }
+
+  Future<void> _checkShowcase() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenShowcase = prefs.getBool('has_seen_showcase') ?? false;
+
+    if (!hasSeenShowcase) {
+      if (!mounted) return;
+      List<GlobalKey> keys = [];
+      if (!_permissionsGranted) keys.add(_permissionKey);
+      keys.add(_controllerKey);
+      keys.add(_receiverKey);
+
+      ShowCaseWidget.of(context).startShowCase(keys);
+      await prefs.setBool('has_seen_showcase', true);
+    }
   }
 
   Future<void> _checkPermissions() async {
@@ -122,27 +148,36 @@ class _SelectorScreenState extends State<SelectorScreen> {
                     // ── Peringatan Izin ──
                     if (!_permissionsGranted) ...[
                       const SizedBox(height: 24),
-                      GestureDetector(
-                        onTap: _checkPermissions,
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppTheme.warning.withOpacity(0.06),
+                      Showcase(
+                        key: _permissionKey,
+                        title: 'Akses Perangkat',
+                        description: 'Ketuk di sini untuk memberikan izin Kamera dan Bluetooth agar aplikasi dapat berfungsi.',
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _checkPermissions,
                             borderRadius: BorderRadius.circular(AppTheme.r10),
-                            border: Border.all(color: AppTheme.warning.withOpacity(0.15)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.shield_outlined, size: 18, color: AppTheme.warning),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'Izin diperlukan — ketuk untuk mengaktifkan',
-                                  style: TextStyle(color: AppTheme.warning, fontSize: 13, fontWeight: FontWeight.w500),
-                                ),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppTheme.warning.withOpacity(0.06),
+                                borderRadius: BorderRadius.circular(AppTheme.r10),
+                                border: Border.all(color: AppTheme.warning.withOpacity(0.15)),
                               ),
-                              Icon(Icons.chevron_right_rounded, size: 18, color: AppTheme.warning),
-                            ],
+                              child: Row(
+                                children: [
+                                  Icon(Icons.shield_outlined, size: 18, color: AppTheme.warning),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Izin diperlukan — ketuk untuk mengaktifkan',
+                                      style: TextStyle(color: AppTheme.warning, fontSize: 13, fontWeight: FontWeight.w500),
+                                    ),
+                                  ),
+                                  Icon(Icons.chevron_right_rounded, size: 18, color: AppTheme.warning),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -163,18 +198,28 @@ class _SelectorScreenState extends State<SelectorScreen> {
                     const SizedBox(height: 12),
 
                     // ── Kartu Mode ──
-                    AnimatedModeCard(
-                      title: 'Pengendali Gestur',
-                      subtitle: 'Deteksi gerakan kepala dan kirim perintah via BLE',
-                      icon: Icons.videocam_outlined,
-                      onTap: () => _navigate(const ControllerScreen()),
+                    Showcase(
+                      key: _controllerKey,
+                      title: 'Mode Pengendali',
+                      description: 'Pilih mode ini pada perangkat utama. Kamera akan mendeteksi gestur wajah Anda.',
+                      child: AnimatedModeCard(
+                        title: 'Pengendali Gestur',
+                        subtitle: 'Deteksi gerakan kepala dan kirim perintah via BLE',
+                        icon: Icons.videocam_outlined,
+                        onTap: () => _navigate(const ControllerScreen()),
+                      ),
                     ),
                     const SizedBox(height: 10),
-                    AnimatedModeCard(
-                      title: 'Penerima Perintah',
-                      subtitle: 'Terima dan tampilkan perintah masuk secara real-time',
-                      icon: Icons.sensors_rounded,
-                      onTap: () => _navigate(const ReceiverScreen()),
+                    Showcase(
+                      key: _receiverKey,
+                      title: 'Mode Penerima',
+                      description: 'Pilih mode ini pada perangkat lain untuk menerima perintah secara real-time.',
+                      child: AnimatedModeCard(
+                        title: 'Penerima Perintah',
+                        subtitle: 'Terima dan tampilkan perintah masuk secara real-time',
+                        icon: Icons.sensors_rounded,
+                        onTap: () => _navigate(const ReceiverScreen()),
+                      ),
                     ),
 
                     const Spacer(),

@@ -8,7 +8,7 @@ class GestureDetectionService extends ChangeNotifier {
   FaceDetector? _faceDetector;
 
   GestureDetectionService() {
-    if (!kIsWeb) {
+    if (!kIsWeb && defaultTargetPlatform != TargetPlatform.windows && defaultTargetPlatform != TargetPlatform.linux && defaultTargetPlatform != TargetPlatform.macOS) {
       _faceDetector = FaceDetector(
         options: FaceDetectorOptions(
           enableClassification: false,
@@ -28,7 +28,7 @@ class GestureDetectionService extends ChangeNotifier {
   GestureType get currentGesture => _currentGesture;
 
   Future<void> processImage(InputImage inputImage, Function(GestureType) onGestureDetected) async {
-    if (_isProcessing || kIsWeb || _faceDetector == null) return;
+    if (_isProcessing || kIsWeb || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux || defaultTargetPlatform == TargetPlatform.macOS || _faceDetector == null) return;
     _isProcessing = true;
 
     try {

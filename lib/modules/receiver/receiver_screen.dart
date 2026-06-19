@@ -90,7 +90,7 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
 
           // ── Tombol Simulasi ──
           Container(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + MediaQuery.of(context).padding.bottom),
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: AppTheme.border)),
             ),

@@ -3,7 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 class PermissionService {
   Future<bool> requestAllPermissions() async {
-    if (kIsWeb) return true; // Bypass on Web for UI testing
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux || defaultTargetPlatform == TargetPlatform.macOS) return true; // Bypass on Web & Desktop for UI testing
 
     List<Permission> permissions = [
       Permission.camera,
@@ -23,11 +23,20 @@ class PermissionService {
     Map<Permission, PermissionStatus> statuses = await permissions.request();
 
     bool allGranted = true;
+    bool hasPermanentlyDenied = false;
+
     statuses.forEach((permission, status) {
       if (!status.isGranted) {
         allGranted = false;
       }
+      if (status.isPermanentlyDenied) {
+        hasPermanentlyDenied = true;
+      }
     });
+
+    if (hasPermanentlyDenied) {
+      await openAppSettings();
+    }
 
     return allGranted;
   }

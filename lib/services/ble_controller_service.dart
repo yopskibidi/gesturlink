@@ -21,8 +21,8 @@ class BleControllerService extends ChangeNotifier {
     _connectionState = BleConnectionState.scanning;
     notifyListeners();
 
-    if (kIsWeb) {
-      debugPrint('BLE Scan mocked on Web');
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux) {
+      debugPrint('BLE Scan mocked on Web/Desktop');
       Future.delayed(const Duration(seconds: 2), () {
         _connectionState = BleConnectionState.connected;
         notifyListeners();
@@ -51,7 +51,7 @@ class BleControllerService extends ChangeNotifier {
   }
 
   Future<void> stopScanning() async {
-    if (kIsWeb) return;
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux) return;
     await FlutterBluePlus.stopScan();
     _scanSubscription?.cancel();
     if (_connectionState == BleConnectionState.scanning) {

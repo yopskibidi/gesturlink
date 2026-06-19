@@ -55,6 +55,10 @@ add_subdirectory("runner")
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /await")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /await")
+
+# Include the generated cmake files.
 include(flutter/generated_plugins.cmake)
 
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:showcaseview/showcaseview.dart';
 
 import 'core/theme.dart';
 import 'modules/onboarding/splash_screen.dart';
@@ -23,16 +24,19 @@ void main() {
   );
 }
 
+
 class GesturLinkApp extends StatelessWidget {
   const GesturLinkApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'GesturLink',
-      theme: AppTheme.darkTheme,
-      home: const SplashScreen(),
-      debugShowCheckedModeBanner: false,
+    return ShowCaseWidget(
+      builder: (context) => MaterialApp(
+        title: 'GesturLink',
+        theme: AppTheme.darkTheme,
+        home: const SplashScreen(),
+        debugShowCheckedModeBanner: false,
+      ),
     );
   }
 }

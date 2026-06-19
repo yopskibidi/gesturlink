@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme.dart';
 import 'loading_screen.dart';
+import 'user_guide_screen.dart';
 
 /// Splash Screen — animasi cinematic premium.
 ///
@@ -123,11 +125,16 @@ class _SplashScreenState extends State<SplashScreen>
     _exitController.forward();
     await Future.delayed(const Duration(milliseconds: 500));
 
-    // Navigasi ke Loading Screen
+    // Cek apakah user sudah melihat onboarding
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+
+    // Navigasi ke layar selanjutnya
     if (mounted) {
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const LoadingScreen(),
+          pageBuilder: (_, __, ___) =>
+              hasSeenOnboarding ? const LoadingScreen() : const UserGuideScreen(),
           transitionDuration: const Duration(milliseconds: 500),
           transitionsBuilder: (_, anim, __, child) {
             return FadeTransition(opacity: anim, child: child);

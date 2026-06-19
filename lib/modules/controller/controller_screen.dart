@@ -195,7 +195,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
               color: AppTheme.bg,
               border: Border(top: BorderSide(color: AppTheme.border)),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: EdgeInsets.fromLTRB(24, 16, 24, 16 + MediaQuery.of(context).padding.bottom),
             child: Row(
               children: [
                 _gestureBox('KIRI', Icons.west_rounded, gesture == GestureType.tiltLeft),

@@ -20,8 +20,8 @@ class BleReceiverService extends ChangeNotifier {
   List<ActionLog> get actionLogs => _actionLogs;
 
   Future<void> startAdvertising() async {
-    if (kIsWeb) {
-      debugPrint('BLE Peripheral mocked on Web');
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux) {
+      debugPrint('BLE Peripheral mocked on Web/Desktop');
       _isAdvertising = true;
       notifyListeners();
       return;
@@ -50,7 +50,7 @@ class BleReceiverService extends ChangeNotifier {
   }
 
   Future<void> stopAdvertising() async {
-    if (kIsWeb) {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux) {
       _isAdvertising = false;
       notifyListeners();
       return;
